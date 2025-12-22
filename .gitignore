@@ -1,5 +1,10 @@
 bin/
 obj/
+data/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+FileSharingApp/FileSharingApp/wwwroot/uploads/
+*.db
+*.db-shm
+*.db-wal

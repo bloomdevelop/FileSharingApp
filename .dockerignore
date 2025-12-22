@@ -1,0 +1,46 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.idea/
+.vs/
+*.user
+*.suo
+
+# Build output
+**/bin/
+**/obj/
+
+# NuGet
+**/*.csproj.nuget.g.props
+**/*.csproj.nuget.g.targets
+**/*.csproj.nuget.dgspec.json
+**/project.assets.json
+**/project.nuget.cache
+**/project.packagespec.json
+**/rider.project.restore.info
+**/rider.project.model.nuget.info
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# User uploads
+**/wwwroot/uploads/
+
+# Documentation
+README.md
+*.md
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Development settings
+**/appsettings.Development.json
+
+# Output files
+.output.txt

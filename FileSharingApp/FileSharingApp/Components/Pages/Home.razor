@@ -1,7 +1,243 @@
 ﻿@page "/"
+@using Microsoft.EntityFrameworkCore
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JsRuntime
+@inject IWebHostEnvironment Environment
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject UserService UserService
 
-<PageTitle>Home</PageTitle>
+<PageTitle>FileShare</PageTitle>
 
-<h1>Hello, world!</h1>
 
-Welcome to your new app.
+<div class="upload-container mb-4">
+    <InputFile OnChange="@LoadFiles" multiple/>
+    <div class="d-flex align-items-center justify-content-center gap-2">
+        <span class="fs-5 opacity-75">Drag files here or</span>
+        <span class="browse-badge">Browse</span>
+    </div>
+</div>
+@if (_errorMessage != null)
+{
+    <div class="alert alert-danger-custom mb-4">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>@_errorMessage
+    </div>
+}
+@if (_message != null)
+{
+    <div class="alert alert-success-custom mb-4">
+        <i class="bi bi-check-circle-fill me-2"></i>@_message
+    </div>
+}
+<div class="uploaded-section">
+    @foreach (var file in _files)
+    {
+        <div class="file-card @(file.HasError ? "is-error" : "")">
+            <div class="d-flex align-items-start">
+                <div class="file-icon me-3">
+                    <i class="bi @(file.HasError ? "bi-exclamation-circle" : "bi-file-earmark-code")"></i>
+                </div>
+                <div class="flex-grow-1 overflow-hidden">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-truncate fw-medium">
+                            @file.Name
+                            @if (file.HasError)
+                            {
+                                <span class="error-badge ms-2">Error</span>
+                            }
+                        </span>
+                        <button class="btn-close-custom" @onclick="() => DeleteFile(file)"><i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    @if (file.Progress < 100 || file.HasError)
+                    {
+                        <div class="progress-custom">
+                            <div class="progress-bar-custom" style="width: @($"{file.Progress}%")"></div>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="mt-2 d-flex gap-2">
+                @if (file is { HasError: false, Progress: 100 })
+                {
+                    <a href="uploads/@file.Name" target="_blank" download
+                       class="btn btn-action-primary btn-sm text-decoration-none">Download</a>
+                    <a href="uploads/@file.Name" target="_blank" class="btn btn-action-secondary btn-sm text-decoration-none">View</a>
+                    <button class="btn btn-action-secondary btn-sm" @onclick="() => CopyShareLink(file)">
+                        <i class="bi bi-share me-1"></i>Share
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteFile(file)">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                }
+                else if (file.HasError)
+                {
+                    <span class="small text-danger opacity-75">@file.ErrorMessage</span>
+                }
+                else
+                {
+                    <span class="small text-muted">Uploading... @(file.Progress)%</span>
+                }
+            </div>
+        </div>
+    }
+
+    @if (!_files.Any() && !_isLoading)
+    {
+        <div class="py-5 text-center opacity-50">
+            <i class="bi bi-cloud-upload fs-1 d-block mb-2"></i>
+            <p>No files uploaded yet</p>
+        </div>
+    }
+</div>
+
+
+@code {
+    private string? _errorMessage;
+    private List<FileUploadState> _files = [];
+    private bool _isLoading;
+
+    public class FileUploadState
+    {
+        public string Name { get; init; } = "";
+        public string? ShareId { get; set; }
+        public int Progress { get; set; }
+        public bool HasError { get; set; }
+        public string? ErrorMessage { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var username = UserService.CurrentUsername;
+        if (username == null) return;
+        
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _files = await db.FileRecords
+            .Where(f => f.Username == username)
+            .OrderByDescending(f => f.UploadDate)
+            .Select(f => new FileUploadState 
+            { 
+                Name = f.FileName, 
+                ShareId = f.ShareId,
+                Progress = 100 
+            })
+            .ToListAsync();
+    }
+
+    private async Task CopyShareLink(FileUploadState file)
+    {
+        if (string.IsNullOrEmpty(file.ShareId)) return;
+        
+        var shareUrl = NavigationManager.ToAbsoluteUri($"/s/{file.ShareId}").ToString();
+        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", shareUrl);
+        _message = "Link copied to clipboard!";
+        StateHasChanged();
+        await Task.Delay(3000);
+        _message = null;
+        StateHasChanged();
+    }
+
+    private string? _message;
+    private async Task DeleteFile(FileUploadState file)
+    {
+        if (file is { Progress: < 100, HasError: false })
+        {
+            _files.Remove(file);
+            return;
+        }
+
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var record = await db.FileRecords.FirstOrDefaultAsync(f => f.ShareId == file.ShareId);
+
+            if (record != null)
+            {
+                db.FileRecords.Remove(record);
+                await db.SaveChangesAsync();
+
+                // Only delete the physical file if no other records are using it
+                var isUsedByOthers = await db.FileRecords.AnyAsync(f => f.FileName == file.Name);
+                if (!isUsedByOthers)
+                {
+                    var filePath = Path.Combine(Environment.WebRootPath, "uploads", file.Name);
+                    if (File.Exists(filePath))
+                    {
+                        File.Delete(filePath);
+                    }
+                }
+            }
+
+            _files.Remove(file);
+            _message = "File deleted successfully.";
+            StateHasChanged();
+            await Task.Delay(3000);
+            _message = null;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error deleting file: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadFiles(InputFileChangeEventArgs e)
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        const long maxFileSize = 1024 * 1024 * 500;
+
+        foreach (var file in e.GetMultipleFiles())
+        {
+            var state = new FileUploadState { Name = file.Name, Progress = 0 };
+            _files.Insert(0, state);
+
+            try
+            {
+                var path = Path.Combine(Environment.WebRootPath, "uploads");
+                if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+
+                var filePath = Path.Combine(path, file.Name);
+
+                await using var stream = file.OpenReadStream(maxFileSize);
+                await using var fs = new FileStream(filePath, FileMode.Create);
+
+                var buffer = new byte[1024 * 80]; // 80KB chunks
+                int bytesRead;
+                long totalRead = 0;
+
+                while ((bytesRead = await stream.ReadAsync(buffer)) != 0)
+                {
+                    await fs.WriteAsync(buffer.AsMemory(0, bytesRead));
+                    totalRead += bytesRead;
+                    state.Progress = (int)((totalRead * 100) / file.Size);
+                    StateHasChanged();
+                }
+
+                state.Progress = 100;
+                
+                var username = UserService.CurrentUsername ?? "Anonymous";
+                await using var db = await DbFactory.CreateDbContextAsync();
+                var fileRecord = new FileRecord
+                {
+                    FileName = file.Name,
+                    Username = username,
+                    UploadDate = DateTime.UtcNow
+                };
+                db.FileRecords.Add(fileRecord);
+                await db.SaveChangesAsync();
+                state.ShareId = fileRecord.ShareId;
+            }
+            catch (Exception ex)
+            {
+                state.HasError = true;
+                state.ErrorMessage = ex.Message;
+            }
+
+            StateHasChanged();
+        }
+
+        _isLoading = false;
+    }
+
+}

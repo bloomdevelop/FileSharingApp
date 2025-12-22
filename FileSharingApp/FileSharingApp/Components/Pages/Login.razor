@@ -1,0 +1,90 @@
+@inject UserService UserService
+
+<div class="login-container">
+    <h3 class="login-title">Anonymous Login</h3>
+    
+    @if (_error != null)
+    {
+        <div class="alert alert-danger-custom">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>@_error
+        </div>
+    }
+
+    <div class="login-field">
+        <label for="username" class="login-label">Username</label>
+        <input type="text" id="username" 
+               class="login-input" 
+               @bind="_username" @bind:event="oninput" 
+               @onkeyup="HandleKeyUp"
+               placeholder="Enter your alias..." />
+    </div>
+
+    <div class="login-actions">
+        <button class="btn btn-action-primary w-100" @onclick="HandleLogin" disabled="@(string.IsNullOrWhiteSpace(_username) || _isProcessing)">
+            @if (_isProcessing) { <span class="spinner-border spinner-border-sm me-2"></span> }
+            Login
+        </button>
+        <div class="login-separator">OR</div>
+        <button class="btn btn-action-secondary w-100" @onclick="HandleSignup" disabled="@(string.IsNullOrWhiteSpace(_username) || _isProcessing)">Sign Up</button>
+    </div>
+</div>
+
+@code {
+    private string? _username;
+    private string? _error;
+    private bool _isProcessing;
+
+    private async Task HandleKeyUp( KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await HandleLogin();
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        if (string.IsNullOrWhiteSpace(_username) || _isProcessing) return;
+        
+        _isProcessing = true;
+        _error = null;
+        try
+        {
+            if (await UserService.LoginAsync(_username))
+            {
+                // Redirect/State change handled by UserService and MainLayout
+            }
+            else
+            {
+                _error = "User not found. Try signing up?";
+            }
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+
+    private async Task HandleSignup()
+    {
+        if (string.IsNullOrWhiteSpace(_username) || _isProcessing) return;
+
+        _isProcessing = true;
+        _error = null;
+        try
+        {
+            if (await UserService.SignupAsync(_username))
+            {
+                // Redirect/State change handled by UserService and MainLayout
+            }
+            else
+            {
+                _error = "Username already taken.";
+            }
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+}

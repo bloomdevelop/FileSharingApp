@@ -1,0 +1,84 @@
+@page "/s/{ShareId}"
+@using FileSharingApp.Data
+@using FileSharingApp.Models
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<div class="d-flex justify-content-center align-items-center" style="min-height: 70vh;">
+    <div style="width: 100%; max-width: 500px;">
+        @if (_isLoading)
+        {
+            <div class="text-center">
+                <div class="spinner-border" style="color: var(--accent);" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2 opacity-75">Finding your file...</p>
+            </div>
+        }
+        else if (_file == null)
+        {
+            <div class="file-card text-center py-5">
+                <i class="bi bi-file-earmark-x text-danger fs-1 mb-3"></i>
+                <h4 class="mb-2">File Not Found</h4>
+                <p class="opacity-50">The link might be broken or the file has been removed.</p>
+                <a href="/" class="btn btn-action-secondary mt-3">Go to Home</a>
+            </div>
+        }
+        else
+        {
+            <div class="file-card">
+                <div class="text-center pt-2 mb-4">
+                    <div class="file-icon mb-3">
+                        <i class="bi bi-file-earmark-arrow-down" style="font-size: 4rem;"></i>
+                    </div>
+                    <h3 class="fw-bold text-truncate" title="@_file.FileName">@_file.FileName</h3>
+                </div>
+                
+                <div class="px-2 pb-4">
+                    <div class="d-flex justify-content-between mb-4 opacity-75 small border-bottom border-secondary pb-2">
+                        <span>Uploaded by: <strong class="text-white">@_file.Username</strong></span>
+                        <span>@_file.UploadDate.ToLocalTime().ToString("MMM dd, yyyy")</span>
+                    </div>
+                    
+                    <div class="d-grid gap-3">
+                        <a href="uploads/@_file.FileName" target="_blank" download
+                           class="btn btn-action-primary btn-lg py-3 fw-bold text-decoration-none text-center">
+                            <i class="bi bi-download me-2"></i>Download File
+                        </a>
+                        <a href="uploads/@_file.FileName" target="_blank"
+                           class="btn btn-action-secondary btn-lg py-3 text-decoration-none text-center">
+                            <i class="bi bi-eye me-2"></i>View Online
+                        </a>
+                    </div>
+                </div>
+                <div class="mt-4 pt-3 border-top border-secondary text-center opacity-50 small">
+                    <p class="mb-0">Shared via FileShare</p>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string? ShareId { get; set; }
+
+    private FileRecord? _file;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(ShareId))
+        {
+            _isLoading = false;
+            return;
+        }
+
+        using var db = await DbFactory.CreateDbContextAsync();
+        _file = await db.FileRecords
+            .FirstOrDefaultAsync(f => f.ShareId == ShareId);
+        
+        _isLoading = false;
+    }
+}

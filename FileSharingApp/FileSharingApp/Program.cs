@@ -9,8 +9,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
     {
         options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(10);
-    })
-    .AddInteractiveWebAssemblyComponents();
+    });
 
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseSqlite("Data Source=data.db"));
@@ -52,10 +51,6 @@ app.UseAntiforgery();
 app.UseStaticFiles();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode()
-    .AddInteractiveWebAssemblyRenderMode()
-    .AddAdditionalAssemblies(typeof(_Imports).Assembly);
-
-app.UseStaticFiles();
+    .AddInteractiveServerRenderMode();
 
 app.Run();

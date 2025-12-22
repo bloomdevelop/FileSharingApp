@@ -8,3 +8,4 @@ FileSharingApp/FileSharingApp/wwwroot/uploads/
 *.db
 *.db-shm
 *.db-wal
+uploads/

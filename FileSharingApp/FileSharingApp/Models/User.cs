@@ -5,6 +5,7 @@ namespace FileSharingApp.Models;
 public class User
 {
     [Key]
-    public string Username { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [MaxLength(50)]
+    public string Username { get; init; } = string.Empty;
+    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
 }

@@ -1,9 +1,6 @@
 @page "/s/{ShareId}"
-@using FileSharingApp.Data
-@using FileSharingApp.Models
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<AppDbContext> DbFactory
-@inject NavigationManager NavigationManager
 
 <div class="d-flex justify-content-center align-items-center" style="min-height: 70vh;">
     <div style="width: 100%; max-width: 500px;">
@@ -75,7 +72,7 @@
             return;
         }
 
-        using var db = await DbFactory.CreateDbContextAsync();
+        await using var db = await DbFactory.CreateDbContextAsync();
         _file = await db.FileRecords
             .FirstOrDefaultAsync(f => f.ShareId == ShareId);
         

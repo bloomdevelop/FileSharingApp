@@ -1,5 +1,6 @@
 using FileSharingApp.Components;
 using FileSharingApp.Data;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,11 +17,10 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 
 builder.Services.AddScoped<UserService>();
 
-builder.Services.AddServerSideBlazor()
-    .AddHubOptions(options =>
-    {
-        options.MaximumReceiveMessageSize = 1024 * 1024 * 500; // 500MB
-    });
+builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options =>
+{
+    options.MaximumReceiveMessageSize = 1024 * 1024 * 500; // 500MB
+});
 
 var app = builder.Build();
 

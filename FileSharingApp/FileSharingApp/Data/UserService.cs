@@ -1,31 +1,29 @@
-using FileSharingApp.Data;
+using System.Security.Cryptography;
 using FileSharingApp.Models;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.EntityFrameworkCore;
 
 namespace FileSharingApp.Data;
 
-public class UserService
+public class UserService(IDbContextFactory<AppDbContext> dbFactory, ProtectedLocalStorage localStorage)
 {
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
-    private readonly ProtectedLocalStorage _localStorage;
-    
     public string? CurrentUsername { get; private set; }
     public event Action? OnChange;
 
-    public UserService(IDbContextFactory<AppDbContext> dbFactory, ProtectedLocalStorage localStorage)
-    {
-        _dbFactory = dbFactory;
-        _localStorage = localStorage;
-    }
-
     public async Task InitializeAsync()
     {
-        var result = await _localStorage.GetAsync<string>("username");
-        if (result.Success)
+        try
         {
-            CurrentUsername = result.Value;
-            NotifyStateChanged();
+            var result = await localStorage.GetAsync<string>("username");
+            if (result.Success)
+            {
+                CurrentUsername = result.Value;
+                NotifyStateChanged();
+            }
+        }
+        catch (CryptographicException)
+        {
+            await LogoutAsync();
         }
     }
 
@@ -34,18 +32,16 @@ public class UserService
         if (string.IsNullOrWhiteSpace(username)) return false;
         username = username.Trim();
 
-        using var db = await _dbFactory.CreateDbContextAsync();
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Username.ToLower() == username.ToLower());
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var user = await db.Users.FirstOrDefaultAsync(u => string.Equals(u.Username.ToLower(), username.ToLower(), StringComparison.OrdinalIgnoreCase));
+
+        if (user == null) return false;
         
-        if (user != null)
-        {
-            CurrentUsername = user.Username; // Use the stored casing
-            await _localStorage.SetAsync("username", CurrentUsername);
-            NotifyStateChanged();
-            return true;
-        }
-        
-        return false;
+        CurrentUsername = user.Username; // Use the stored casing
+        await localStorage.SetAsync("username", CurrentUsername);
+        NotifyStateChanged();
+        return true;
+
     }
 
     public async Task<bool> SignupAsync(string username)
@@ -53,7 +49,8 @@ public class UserService
         if (string.IsNullOrWhiteSpace(username)) return false;
         username = username.Trim();
 
-        using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = await dbFactory.CreateDbContextAsync();
+        
         if (await db.Users.AnyAsync(u => u.Username.ToLower() == username.ToLower()))
         {
             return false;
@@ -61,9 +58,9 @@ public class UserService
 
         db.Users.Add(new User { Username = username });
         await db.SaveChangesAsync();
-        
+
         CurrentUsername = username;
-        await _localStorage.SetAsync("username", username);
+        await localStorage.SetAsync("username", username);
         NotifyStateChanged();
         return true;
     }
@@ -71,7 +68,7 @@ public class UserService
     public async Task LogoutAsync()
     {
         CurrentUsername = null;
-        await _localStorage.DeleteAsync("username");
+        await localStorage.DeleteAsync("username");
         NotifyStateChanged();
     }
 
